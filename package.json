@@ -1,0 +1,23 @@
+{
+  "name": "simple-vgress",
+  "version": "1.0.0",
+  "description": "WordPress QA Screenshot Tool - Fast manual smoke testing after plugin/theme updates",
+  "main": "index.js",
+  "scripts": {
+    "go": "ts-node src/run.ts",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "packageManager": "pnpm@10.19.0",
+  "dependencies": {
+    "playwright": "^1.58.2",
+    "yaml": "^2.8.2"
+  },
+  "devDependencies": {
+    "@types/node": "^25.2.3",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.9.3"
+  }
+}

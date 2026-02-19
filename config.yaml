@@ -1,0 +1,19 @@
+_default:
+  fullPage: true
+  mobile: false
+  timeoutMs: 10000
+  requiredSelectors: []
+  abortIfFail: false
+
+pages:
+  https://dashdot.com.au/:
+    mobile: true
+    abortIfFail: true
+
+  https://dashdot.com.au/services:
+    requiredSelectors:
+      - ".services-section"
+
+  https://dashdot.com.au/contact:
+    requiredSelectors:
+      - "form"
