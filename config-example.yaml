@@ -1,0 +1,73 @@
+# WordPress QA Screenshot Tool - Example Configuration
+# Copy this file to config.yaml and customize for your site
+
+_default:
+  fullPage: true
+  devices: ["desktop", "mobile", "tablet"]  # Can be: desktop, mobile, tablet, or any Playwright device name
+  timeoutMs: 30000  # 30 seconds - increased for slower pages
+  requiredSelectors: []
+  abortIfFail: false
+  waitUntil: load  # Options: load, domcontentloaded, networkidle, commit
+  waitFor: []  # CSS selectors to wait for before screenshot (waits up to 30s per selector)
+  scrollPage: true  # Scroll entire page to trigger CSS animations/transitions (then waits 5s)
+  maxScreenshotHeight: 7000  # Max height per screenshot part in pixels (null = no splitting)
+
+pages:
+  # Example: Homepage with selector validation
+  https://example.com/:
+    devices: ["desktop", "mobile"]
+    requiredSelectors:
+      - "nav"
+      - "footer"
+    abortIfFail: true  # Stop all checks if this critical page fails
+
+  # Example: Simple page with default settings
+  https://example.com/about:
+    # Inherits all default settings
+
+  # Example: Page with custom wait and selectors
+  https://example.com/products:
+    devices: ["desktop", "mobile", "tablet"]
+    waitFor:
+      - ".product-grid"
+      - ".filters"
+    requiredSelectors:
+      - ".product-item"
+
+  # Example: Page with custom timeout and no scrolling
+  https://example.com/slow-page:
+    timeoutMs: 60000  # 60 seconds for slow pages
+    scrollPage: false  # Don't scroll (faster)
+    waitUntil: load  # Just wait for load event
+
+  # Example: Disable screenshot splitting for short pages
+  # https://example.com/short-page:
+  #   maxScreenshotHeight: null  # Single full-page screenshot
+
+  # Example: Custom split height for very long pages
+  # https://example.com/very-long:
+  #   maxScreenshotHeight: 10000  # Larger parts (fewer splits)
+
+  # Example: Test with custom Playwright device names
+  # https://example.com/mobile-test:
+  #   devices: ["iPhone 13", "iPhone 13 Pro", "iPad Pro"]
+  #   waitFor:
+  #     - ".mobile-menu"
+
+  # Example: Wait for specific elements to be visible
+  # https://example.com/interactive:
+  #   waitFor:
+  #     - "#dynamic-content"
+  #     - ".lazy-loaded-section"
+  #   scrollPage: true
+
+  # Example: Critical landing page
+  # https://example.com/landing:
+  #   devices: ["desktop", "mobile"]
+  #   abortIfFail: true
+  #   requiredSelectors:
+  #     - ".hero"
+  #     - ".cta-button"
+  #     - "form"
+  #   waitFor:
+  #     - ".testimonials"
