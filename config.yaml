@@ -1,19 +1,35 @@
 _default:
   fullPage: true
-  mobile: false
-  timeoutMs: 10000
+  devices: ["desktop", "mobile", "tablet"]  # Can be: desktop, mobile, tablet, or any Playwright device name
+  timeoutMs: 30000  # 30 seconds - increased for slower pages
   requiredSelectors: []
   abortIfFail: false
+  waitUntil: load  # Options: load, domcontentloaded, networkidle, commit. Using 'load' for better reliability.
+  waitFor: []  # CSS selectors to wait for before screenshot (waits up to 30s per selector)
+  scrollPage: true  # Scroll entire page to trigger CSS animations/transitions before screenshot (then waits 5s)
 
 pages:
   https://dashdot.com.au/:
-    mobile: true
-    abortIfFail: true
-
-  https://dashdot.com.au/services:
     requiredSelectors:
-      - ".services-section"
+      - "nav"
+  
+  https://dashdot.com.au/discovery/:
+    # Uses default settings (scrollPage: true)
+  
+  # Example: Add more URLs with different device combinations
+  # https://dashdot.com.au/services:
+  #   devices: ["desktop", "mobile", "tablet"]
+  #   requiredSelectors:
+  #     - ".services-section"
+  #   waitFor:
+  #     - ".pricing-table"
+  #     - ".testimonials"
+  #   scrollPage: true  # Enable page scrolling (default)
 
-  https://dashdot.com.au/contact:
-    requiredSelectors:
-      - "form"
+  # Example: Test with multiple devices including custom Playwright devices
+  # https://example.com/:
+  #   devices: ["desktop", "iPhone 13", "iPad Pro"]
+  #   waitFor:
+  #     - "#content"
+  #     - ".main-image"
+  #   scrollPage: false  # Disable page scrolling for this URL
