@@ -93,10 +93,14 @@ async function main() {
   const failed = results.filter(r => !r.success).length;
   const checked = results.length;
 
+  const totalScreenshotFiles = results.reduce((sum, r) => {
+    return sum + (r.screenshots ? r.screenshots.length : (r.screenshot ? 1 : 0));
+  }, 0);
+
   console.log(`Jobs checked: ${checked}`);
   console.log(`Passed: ${passed}`);
   console.log(`Failed: ${failed}`);
-  console.log(`Screenshots: ${results.filter(r => r.screenshot).length}\n`);
+  console.log(`Screenshot files: ${totalScreenshotFiles}\n`);
 
   // Show failures
   const failures = results.filter(r => !r.success);

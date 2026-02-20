@@ -7,6 +7,7 @@ _default:
   waitUntil: load  # Options: load, domcontentloaded, networkidle, commit. Using 'load' for better reliability.
   waitFor: []  # CSS selectors to wait for before screenshot (waits up to 30s per selector)
   scrollPage: true  # Scroll entire page to trigger CSS animations/transitions before screenshot (then waits 5s)
+  maxScreenshotHeight: 7000  # Max height per screenshot part in pixels (null = no splitting, splits into equal parts)
 
 pages:
   https://dashdot.com.au/:
@@ -14,7 +15,7 @@ pages:
       - "nav"
   
   https://dashdot.com.au/discovery/:
-    # Uses default settings (scrollPage: true)
+    # Uses default settings
   
   # Example: Add more URLs with different device combinations
   # https://dashdot.com.au/services:
@@ -25,6 +26,15 @@ pages:
   #     - ".pricing-table"
   #     - ".testimonials"
   #   scrollPage: true  # Enable page scrolling (default)
+  #   maxScreenshotHeight: 7000  # Default splitting
+
+  # Example: Disable screenshot splitting for short pages
+  # https://example.com/short-page:
+  #   maxScreenshotHeight: null  # No splitting, single full-page screenshot
+
+  # Example: Custom split height for very long pages
+  # https://example.com/very-long:
+  #   maxScreenshotHeight: 10000  # Larger parts (fewer splits)
 
   # Example: Test with multiple devices including custom Playwright devices
   # https://example.com/:

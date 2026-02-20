@@ -12,7 +12,9 @@
   "license": "ISC",
   "packageManager": "pnpm@10.19.0",
   "dependencies": {
+    "jimp": "^1.6.0",
     "playwright": "^1.58.2",
+    "sharp": "^0.34.5",
     "yaml": "^2.8.2"
   },
   "devDependencies": {

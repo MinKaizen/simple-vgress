@@ -13,6 +13,7 @@ export interface PageConfig {
   waitUntil: WaitUntilOption;
   waitFor: string[];  // CSS selectors to wait for before taking screenshot
   scrollPage: boolean;  // Scroll the entire page to trigger CSS animations/transitions before screenshot
+  maxScreenshotHeight: number | null;  // Max height per screenshot part (null = no splitting, default 7000)
 }
 
 export interface Config {

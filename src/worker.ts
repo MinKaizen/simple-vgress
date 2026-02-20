@@ -13,6 +13,7 @@ export interface PageResult {
   warnings: string[];
   duration: number;
   screenshot?: string;
+  screenshots?: string[];  // Multiple screenshots if page was split
 }
 
 /**
@@ -29,6 +30,7 @@ export async function checkPage(
   const errors: string[] = [];
   const warnings: string[] = [];
   let screenshot: string | undefined;
+  let screenshots: string[] = [];
 
   let page: Page | null = null;
   
@@ -154,18 +156,33 @@ export async function checkPage(
         warnings.push(`Slow page: ${formatDuration(navigationTime)}s`);
       }
 
-      // Take screenshot
+      // Take screenshot(s)
       const urlSlug = urlToSlug(url);
       const deviceSlug = deviceToSlug(device);
-      const filename = `${urlSlug}.${deviceSlug}.png`;
-      const screenshotPath = path.join(outputDir, filename);
       
-      await page.screenshot({
-        path: screenshotPath,
-        fullPage: config.fullPage,
-      });
+      // Check if we need to split screenshots
+      if (config.fullPage && config.maxScreenshotHeight !== null) {
+        screenshots = await captureMultiPartScreenshots(
+          page,
+          urlSlug,
+          deviceSlug,
+          config.maxScreenshotHeight,
+          outputDir
+        );
+        screenshot = screenshots.length > 0 ? screenshots[0] : undefined;
+      } else {
+        // Single screenshot (original behavior)
+        const filename = `${urlSlug}.${deviceSlug}.png`;
+        const screenshotPath = path.join(outputDir, filename);
+        
+        await page.screenshot({
+          path: screenshotPath,
+          fullPage: config.fullPage,
+        });
 
-      screenshot = filename;
+        screenshot = filename;
+        screenshots = [filename];
+      }
     }
 
     await context.close();
@@ -192,7 +209,108 @@ export async function checkPage(
     warnings,
     duration,
     screenshot,
+    screenshots: screenshots.length > 1 ? screenshots : undefined,
   };
+}
+
+/**
+ * Capture multi-part screenshots by splitting long pages into manageable chunks
+ */
+async function captureMultiPartScreenshots(
+  page: Page,
+  urlSlug: string,
+  deviceSlug: string,
+  maxHeight: number,
+  outputDir: string
+): Promise<string[]> {
+  const screenshots: string[] = [];
+  const { Jimp } = require('jimp');
+  const fs = require('fs');
+  
+  // Get page dimensions
+  const dimensions = await page.evaluate(() => {
+    // @ts-ignore
+    const height = Math.max(
+      // @ts-ignore
+      document.body.scrollHeight,
+      // @ts-ignore
+      document.body.offsetHeight,
+      // @ts-ignore
+      document.documentElement.clientHeight,
+      // @ts-ignore
+      document.documentElement.scrollHeight,
+      // @ts-ignore
+      document.documentElement.offsetHeight
+    );
+    // @ts-ignore
+    const width = Math.max(
+      // @ts-ignore
+      document.body.scrollWidth,
+      // @ts-ignore
+      document.body.offsetWidth,
+      // @ts-ignore
+      document.documentElement.clientWidth,
+      // @ts-ignore
+      document.documentElement.scrollWidth,
+      // @ts-ignore
+      document.documentElement.offsetWidth
+    );
+    return { height, width };
+  });
+
+  const pageHeight = dimensions.height;
+
+  // If page height is less than or equal to max, take single screenshot
+  if (pageHeight <= maxHeight) {
+    const filename = `${urlSlug}.${deviceSlug}.png`;
+    const screenshotPath = path.join(outputDir, filename);
+    
+    await page.screenshot({
+      path: screenshotPath,
+      fullPage: true,
+    });
+    
+    return [filename];
+  }
+
+  // Calculate number of parts needed (round UP)
+  const numParts = Math.ceil(pageHeight / maxHeight);
+  const partHeight = Math.ceil(pageHeight / numParts);
+
+  // First, take a full-page screenshot
+  const tempFullPath = path.join(outputDir, `temp-full-${Date.now()}.png`);
+  await page.screenshot({
+    path: tempFullPath,
+    fullPage: true,
+  });
+
+  // Load the full image with Jimp
+  const fullImage = await Jimp.read(tempFullPath);
+  
+  // Split into parts
+  for (let i = 0; i < numParts; i++) {
+    const startY = i * partHeight;
+    const actualHeight = Math.min(partHeight, pageHeight - startY);
+    
+    const filename = `${urlSlug}.${deviceSlug}.part${i + 1}of${numParts}.png`;
+    const screenshotPath = path.join(outputDir, filename);
+    
+    // Crop the image
+    const croppedImage = fullImage.clone().crop({
+      x: 0,
+      y: startY,
+      w: fullImage.bitmap.width,
+      h: actualHeight
+    });
+    await croppedImage.write(screenshotPath);
+    
+    screenshots.push(filename);
+  }
+
+  // Delete the temporary full screenshot
+  fs.unlinkSync(tempFullPath);
+
+  return screenshots;
 }
 
 /**
