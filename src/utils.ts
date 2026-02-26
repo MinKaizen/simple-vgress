@@ -14,6 +14,8 @@ export interface PageConfig {
   waitFor: string[];  // CSS selectors to wait for before taking screenshot
   scrollPage: boolean;  // Scroll the entire page to trigger CSS animations/transitions before screenshot
   maxScreenshotHeight: number | null;  // Max height per screenshot part (null = no splitting, default 7000)
+  visualRegressionThreshold: number;  // Pixel difference threshold percentage (default 1.0 = 1%)
+  generateDiffMask: boolean;  // Generate traditional diff mask image (default true)
 }
 
 export interface Config {
@@ -122,4 +124,51 @@ export function expandPageJobs(config: Config): PageJob[] {
   }
   
   return jobs;
+}
+
+/**
+ * Find all screenshot files matching URL+device pattern
+ * Pattern: {urlSlug}.{deviceSlug}.png or {urlSlug}.{deviceSlug}.part1of2.png
+ */
+export function findScreenshots(
+  directory: string,
+  urlSlug: string,
+  deviceSlug: string
+): string[] {
+  const fs = require('fs');
+  if (!fs.existsSync(directory)) {
+    return [];
+  }
+  
+  const files = fs.readdirSync(directory);
+  // Match files with dots as separators: urlSlug.deviceSlug.png or urlSlug.deviceSlug.part1of2.png
+  const pattern = new RegExp(`^${urlSlug}\\.${deviceSlug}(\\.part\\d+of\\d+)?\\.png$`);
+  return files.filter((f: string) => pattern.test(f)).sort();
+}
+
+/**
+ * Truncate URL from front for display
+ * Example: https://example.com/very/long/path -> ...com/very/long/path
+ */
+export function truncateUrl(url: string, maxLength: number = 30): string {
+  if (url.length <= maxLength) return url;
+  return '...' + url.slice(-(maxLength - 3));
+}
+
+/**
+ * Prompt user for yes/no input
+ */
+export async function promptUser(question: string): Promise<boolean> {
+  const readline = require('readline');
+  const rl = readline.createInterface({
+    input: process.stdin,
+    output: process.stdout
+  });
+  
+  return new Promise((resolve) => {
+    rl.question(question, (answer: string) => {
+      rl.close();
+      resolve(answer.trim().toLowerCase() === 'y');
+    });
+  });
 }

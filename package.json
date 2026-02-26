@@ -12,7 +12,9 @@
   "license": "ISC",
   "packageManager": "pnpm@10.19.0",
   "dependencies": {
+    "@types/pixelmatch": "^5.2.6",
     "jimp": "^1.6.0",
+    "pixelmatch": "^7.1.0",
     "playwright": "^1.58.2",
     "sharp": "^0.34.5",
     "yaml": "^2.8.2"

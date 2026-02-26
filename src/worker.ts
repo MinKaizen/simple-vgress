@@ -273,9 +273,9 @@ async function captureMultiPartScreenshots(
     return [filename];
   }
 
-  // Calculate number of parts needed (round UP)
+  // Calculate number of parts needed (fixed-height chunks)
+  const partHeight = maxHeight;  // Fixed height chunks
   const numParts = Math.ceil(pageHeight / maxHeight);
-  const partHeight = Math.ceil(pageHeight / numParts);
 
   // First, take a full-page screenshot
   const tempFullPath = path.join(outputDir, `temp-full-${Date.now()}.png`);

@@ -11,6 +11,8 @@ _default:
   waitFor: []  # CSS selectors to wait for before screenshot (waits up to 30s per selector)
   scrollPage: true  # Scroll entire page to trigger CSS animations/transitions (then waits 5s)
   maxScreenshotHeight: 7000  # Max height per screenshot part in pixels (null = no splitting)
+  visualRegressionThreshold: 1.0  # Pixel difference threshold percentage (1.0 = 1%)
+  generateDiffMask: true  # Generate traditional diff mask image showing pixel differences
 
 pages:
   # Example: Homepage with selector validation
