@@ -130,8 +130,8 @@ export async function checkPage(
         await scrollEntirePage(page);
       }
 
-      // Additional 5 second wait after all loading/scrolling
-      await page.waitForTimeout(5000);
+      // Additional configurable wait after all loading/scrolling
+      await page.waitForTimeout(config.additionalWaitMs);
 
       // Check for console errors
       if (consoleErrors.length > 0) {

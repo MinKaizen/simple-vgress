@@ -9,7 +9,8 @@ _default:
   abortIfFail: false
   waitUntil: load  # Options: load, domcontentloaded, networkidle, commit
   waitFor: []  # CSS selectors to wait for before screenshot (waits up to 30s per selector)
-  scrollPage: true  # Scroll entire page to trigger CSS animations/transitions (then waits 5s)
+  scrollPage: true  # Scroll entire page to trigger CSS animations/transitions before screenshot
+  additionalWaitMs: 5000  # Extra wait time after everything is loaded (in milliseconds)
   maxScreenshotHeight: 7000  # Max height per screenshot part in pixels (null = no splitting)
   visualRegressionThreshold: 1.0  # Pixel difference threshold percentage (1.0 = 1%)
   generateDiffMask: true  # Generate traditional diff mask image showing pixel differences
@@ -41,6 +42,7 @@ pages:
     timeoutMs: 60000  # 60 seconds for slow pages
     scrollPage: false  # Don't scroll (faster)
     waitUntil: load  # Just wait for load event
+    additionalWaitMs: 10000  # Wait 10 seconds for animations to complete
 
   # Example: Disable screenshot splitting for short pages
   # https://example.com/short-page:

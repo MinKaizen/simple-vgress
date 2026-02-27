@@ -16,6 +16,7 @@ export interface PageConfig {
   maxScreenshotHeight: number | null;  // Max height per screenshot part (null = no splitting, default 7000)
   visualRegressionThreshold: number;  // Pixel difference threshold percentage (default 1.0 = 1%)
   generateDiffMask: boolean;  // Generate traditional diff mask image (default true)
+  additionalWaitMs: number;  // Extra wait time in milliseconds after everything is loaded (default 5000)
 }
 
 export interface Config {
