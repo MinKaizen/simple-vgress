@@ -1,11 +1,12 @@
 // SQLite Database Schema
 export const SCHEMA = `
--- Users (synced from Google OAuth)
+-- Users (admin credentials via .env)
 CREATE TABLE IF NOT EXISTS users (
   id TEXT PRIMARY KEY,
   email TEXT UNIQUE NOT NULL,
   name TEXT,
   avatar_url TEXT,
+  password_hash TEXT,
   created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
   last_login_at DATETIME
 );

@@ -4,7 +4,7 @@ A web-based visual regression testing tool for WordPress QA. This is the web int
 
 ## Features
 
-- **Google OAuth Authentication** - Secure login restricted to your organization's email domain
+- **Simple Email/Password Authentication** - Secure login with admin credentials set via environment variables
 - **Visual Regression Testing** - Capture screenshots and compare against baselines
 - **Slider/Overlay Diff Viewer** - Interactive comparison of baseline vs current screenshots
 - **Scheduled Runs** - Automatic daily runs with configurable cron schedules
@@ -18,7 +18,6 @@ A web-based visual regression testing tool for WordPress QA. This is the web int
 
 - Node.js 18+
 - pnpm (or npm/yarn)
-- Google Cloud Console project with OAuth credentials
 - Chromium browser (installed automatically by Playwright)
 
 ## Setup
@@ -47,17 +46,13 @@ cp .env.example .env.local
 Edit `.env.local` with your settings:
 
 ```env
-# Google OAuth (required)
-GOOGLE_CLIENT_ID=your-google-client-id
-GOOGLE_CLIENT_SECRET=your-google-client-secret
+# Admin credentials (required)
+ADMIN_EMAIL=admin@example.com
+ADMIN_PASSWORD=your-secure-password
+
+# NextAuth secret (generate with: openssl rand -base64 32)
 NEXTAUTH_SECRET=generate-a-secure-random-string
 NEXTAUTH_URL=http://localhost:3000
-
-# Domain restriction (comma-separated)
-ALLOWED_EMAIL_DOMAINS=dashdot.com.au
-
-# Admin user
-ADMIN_EMAIL=marketing@dashdot.com.au
 
 # Zapier webhook for notifications (optional)
 ZAPIER_WEBHOOK_URL=https://hooks.zapier.com/hooks/catch/your-webhook-id
@@ -66,19 +61,9 @@ ZAPIER_WEBHOOK_URL=https://hooks.zapier.com/hooks/catch/your-webhook-id
 DATA_DIR=./data
 ```
 
-### 4. Set up Google OAuth
+The admin user will be automatically created on first startup with the credentials specified in the environment variables.
 
-1. Go to [Google Cloud Console](https://console.cloud.google.com/)
-2. Create a new project or select existing
-3. Enable the Google+ API
-4. Go to Credentials > Create Credentials > OAuth client ID
-5. Choose "Web application"
-6. Add authorized redirect URIs:
-   - `http://localhost:3000/api/auth/callback/google` (development)
-   - `https://vgress.dashdot.com.au/api/auth/callback/google` (production)
-7. Copy the Client ID and Client Secret to your `.env.local`
-
-### 5. Run Development Server
+### 4. Run Development Server
 
 ```bash
 pnpm dev
@@ -254,6 +239,6 @@ pnpm dev
 
 ### Authentication Issues
 
-1. Verify Google OAuth credentials are correct
-2. Check that redirect URI matches exactly (including trailing slash)
-3. Ensure your email domain is in `ALLOWED_EMAIL_DOMAINS`
+1. Verify `ADMIN_EMAIL` and `ADMIN_PASSWORD` are set in `.env.local`
+2. Ensure `NEXTAUTH_SECRET` is set
+3. If you need to reset the admin password, delete the database (`rm data/app.db`) and restart the server

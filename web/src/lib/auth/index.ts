@@ -1,16 +1,87 @@
 import NextAuth from 'next-auth';
-import Google from 'next-auth/providers/google';
-import { upsertUser } from '@/lib/db';
+import Credentials from 'next-auth/providers/credentials';
+import { getUserByEmail, upsertUser, getDb } from '@/lib/db';
+import { hashPassword, verifyPassword, generateUserId } from './password';
 
-const ALLOWED_DOMAINS = (process.env.ALLOWED_EMAIL_DOMAINS || 'dashdot.com.au')
-  .split(',')
-  .map(d => d.trim().toLowerCase());
+// Initialize admin user from environment variables on first load
+function initializeAdminUser() {
+  const adminEmail = process.env.ADMIN_EMAIL;
+  const adminPassword = process.env.ADMIN_PASSWORD;
+  
+  if (!adminEmail || !adminPassword) {
+    console.warn('Warning: ADMIN_EMAIL and ADMIN_PASSWORD must be set in environment variables');
+    return;
+  }
+  
+  const db = getDb();
+  const existingUser = getUserByEmail(adminEmail);
+  
+  if (!existingUser) {
+    // Create admin user with hashed password
+    const hashedPassword = hashPassword(adminPassword);
+    db.prepare(`
+      INSERT INTO users (id, email, name, password_hash)
+      VALUES (?, ?, ?, ?)
+    `).run(generateUserId(), adminEmail, 'Admin', hashedPassword);
+    console.log('Admin user created successfully');
+  } else if (!existingUser.password_hash) {
+    // Update existing user with password if they don't have one
+    const hashedPassword = hashPassword(adminPassword);
+    db.prepare(`
+      UPDATE users SET password_hash = ? WHERE email = ?
+    `).run(hashedPassword, adminEmail);
+    console.log('Admin user password updated');
+  }
+}
+
+// Initialize admin on module load
+initializeAdminUser();
 
 export const { handlers, signIn, signOut, auth } = NextAuth({
   providers: [
-    Google({
-      clientId: process.env.GOOGLE_CLIENT_ID!,
-      clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
+    Credentials({
+      name: 'credentials',
+      credentials: {
+        email: { label: 'Email', type: 'email' },
+        password: { label: 'Password', type: 'password' },
+      },
+      async authorize(credentials) {
+        if (!credentials?.email || !credentials?.password) {
+          return null;
+        }
+        
+        const email = (credentials.email as string).toLowerCase();
+        const password = credentials.password as string;
+        
+        const user = getUserByEmail(email);
+        
+        if (!user || !user.password_hash) {
+          return null;
+        }
+        
+        const isValid = verifyPassword(password, user.password_hash);
+        
+        if (!isValid) {
+          return null;
+        }
+        
+        // Update last login
+        upsertUser({
+          id: user.id,
+          email: user.email,
+          name: user.name,
+          avatar_url: user.avatar_url,
+          password_hash: user.password_hash,
+          last_login_at: new Date().toISOString(),
+        });
+        
+        return {
+          id: user.id,
+          email: user.email,
+          name: user.name,
+          image: user.avatar_url,
+        };
+      },
     }),
   ],
   pages: {
@@ -18,29 +89,6 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
     error: '/login',
   },
   callbacks: {
-    async signIn({ user, account }) {
-      if (account?.provider !== 'google') return false;
-      
-      const email = user.email?.toLowerCase();
-      if (!email) return false;
-      
-      // Check domain restriction
-      const domain = email.split('@')[1];
-      if (!ALLOWED_DOMAINS.includes(domain)) {
-        return false;
-      }
-      
-      // Upsert user in database
-      upsertUser({
-        id: user.id!,
-        email: email,
-        name: user.name || null,
-        avatar_url: user.image || null,
-        last_login_at: new Date().toISOString(),
-      });
-      
-      return true;
-    },
     async session({ session, token }) {
       if (session.user && token.sub) {
         session.user.id = token.sub;
@@ -62,6 +110,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
 // Helper to check if user is admin
 export function isAdmin(email?: string | null): boolean {
   if (!email) return false;
-  const adminEmail = process.env.ADMIN_EMAIL || 'marketing@dashdot.com.au';
+  const adminEmail = process.env.ADMIN_EMAIL;
+  if (!adminEmail) return false;
   return email.toLowerCase() === adminEmail.toLowerCase();
 }

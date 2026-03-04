@@ -23,6 +23,9 @@ export function getDb(): Database.Database {
     // Initialize schema
     db.exec(SCHEMA);
     
+    // Run migrations for existing databases
+    runMigrations(db);
+    
     // Insert default settings if not exist
     const insertSetting = db.prepare(
       'INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)'
@@ -34,12 +37,25 @@ export function getDb(): Database.Database {
   return db;
 }
 
+// Run database migrations for existing databases
+function runMigrations(db: Database.Database): void {
+  // Check if password_hash column exists in users table
+  const tableInfo = db.prepare("PRAGMA table_info(users)").all() as Array<{ name: string }>;
+  const hasPasswordHash = tableInfo.some(col => col.name === 'password_hash');
+  
+  if (!hasPasswordHash) {
+    db.exec('ALTER TABLE users ADD COLUMN password_hash TEXT');
+    console.log('Migration: Added password_hash column to users table');
+  }
+}
+
 // User types
 export interface User {
   id: string;
   email: string;
   name: string | null;
   avatar_url: string | null;
+  password_hash: string | null;
   created_at: string;
   last_login_at: string | null;
 }
@@ -130,14 +146,14 @@ export function upsertUser(user: Omit<User, 'created_at'>): User {
   if (existing) {
     db.prepare(`
       UPDATE users 
-      SET email = ?, name = ?, avatar_url = ?, last_login_at = CURRENT_TIMESTAMP
+      SET email = ?, name = ?, avatar_url = ?, password_hash = COALESCE(?, password_hash), last_login_at = CURRENT_TIMESTAMP
       WHERE id = ?
-    `).run(user.email, user.name, user.avatar_url, user.id);
+    `).run(user.email, user.name, user.avatar_url, user.password_hash, user.id);
   } else {
     db.prepare(`
-      INSERT INTO users (id, email, name, avatar_url, last_login_at)
-      VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
-    `).run(user.id, user.email, user.name, user.avatar_url);
+      INSERT INTO users (id, email, name, avatar_url, password_hash, last_login_at)
+      VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+    `).run(user.id, user.email, user.name, user.avatar_url, user.password_hash);
   }
   
   return db.prepare('SELECT * FROM users WHERE id = ?').get(user.id) as User;
