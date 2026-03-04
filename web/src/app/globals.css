@@ -1,0 +1,98 @@
+@import "tailwindcss";
+
+:root {
+  --background: #ffffff;
+  --foreground: #171717;
+  --muted: #f5f5f5;
+  --muted-foreground: #737373;
+  --border: #e5e5e5;
+  --input: #e5e5e5;
+  --primary: #171717;
+  --primary-foreground: #fafafa;
+  --secondary: #f5f5f5;
+  --secondary-foreground: #171717;
+  --accent: #f5f5f5;
+  --accent-foreground: #171717;
+  --destructive: #ef4444;
+  --destructive-foreground: #fafafa;
+  --success: #22c55e;
+  --success-foreground: #fafafa;
+  --warning: #f59e0b;
+  --warning-foreground: #fafafa;
+  --ring: #171717;
+  --radius: 0.5rem;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-success: var(--success);
+  --color-success-foreground: var(--success-foreground);
+  --color-warning: var(--warning);
+  --color-warning-foreground: var(--warning-foreground);
+  --color-ring: var(--ring);
+  --radius: var(--radius);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: #0a0a0a;
+    --foreground: #fafafa;
+    --muted: #262626;
+    --muted-foreground: #a3a3a3;
+    --border: #262626;
+    --input: #262626;
+    --primary: #fafafa;
+    --primary-foreground: #171717;
+    --secondary: #262626;
+    --secondary-foreground: #fafafa;
+    --accent: #262626;
+    --accent-foreground: #fafafa;
+    --destructive: #dc2626;
+    --destructive-foreground: #fafafa;
+    --success: #16a34a;
+    --success-foreground: #fafafa;
+    --warning: #d97706;
+    --warning-foreground: #fafafa;
+    --ring: #d4d4d4;
+  }
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: Arial, Helvetica, sans-serif;
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--muted);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--muted-foreground);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--foreground);
+}
