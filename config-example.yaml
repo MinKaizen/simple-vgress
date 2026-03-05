@@ -5,6 +5,7 @@ _default:
   fullPage: true
   devices: ["desktop", "mobile", "tablet"]  # Can be: desktop, mobile, tablet, or any Playwright device name
   timeoutMs: 30000  # 30 seconds - increased for slower pages
+  retries: 3  # Retry attempts on network errors or timeouts (0 = no retries)
   requiredSelectors: []
   abortIfFail: false
   waitUntil: load  # Options: load, domcontentloaded, networkidle, commit
@@ -40,6 +41,7 @@ pages:
   # Example: Page with custom timeout and no scrolling
   https://example.com/slow-page:
     timeoutMs: 60000  # 60 seconds for slow pages
+    retries: 5  # More retries for an unreliable page
     scrollPage: false  # Don't scroll (faster)
     waitUntil: load  # Just wait for load event
     additionalWaitMs: 10000  # Wait 10 seconds for animations to complete

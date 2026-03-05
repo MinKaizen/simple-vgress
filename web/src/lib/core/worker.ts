@@ -17,34 +17,33 @@ export interface PageResult {
   screenshots?: string[];
 }
 
-/**
- * Check a single page with a specific device and capture screenshot
- */
-export async function checkPage(
+interface AttemptResult {
+  errors: string[];
+  warnings: string[];
+  screenshot: string | undefined;
+  screenshots: string[];
+  retryable: boolean;
+}
+
+async function attemptPage(
   browser: Browser,
   url: string,
   device: DeviceName,
   config: PageConfig,
   outputDir: string,
-  onProgress?: (message: string) => void
-): Promise<PageResult> {
-  const startTime = Date.now();
+  log: (msg: string) => void
+): Promise<AttemptResult> {
   const errors: string[] = [];
   const warnings: string[] = [];
   let screenshot: string | undefined;
   let screenshots: string[] = [];
+  let retryable = false;
 
-  let page: Page | null = null;
-  
-  const log = (msg: string) => {
-    if (onProgress) onProgress(msg);
-  };
-  
   try {
     log(`Creating context for ${device}...`);
     const contextOptions = getDeviceOptions(device);
     const context = await browser.newContext(contextOptions);
-    page = await context.newPage();
+    const page = await context.newPage();
 
     // Track console errors (filter out generic 3rd-party errors)
     const consoleErrors: string[] = [];
@@ -150,9 +149,10 @@ export async function checkPage(
         errors.push(`Console errors: ${consoleErrors.join('; ')}`);
       }
 
-      // Check for network failures
+      // Check for network failures (retryable — transient connection issues)
       if (networkFailures.length > 0) {
         errors.push(`Network failures: ${networkFailures.join('; ')}`);
+        retryable = true;
       }
 
       // Check required selectors
@@ -172,7 +172,7 @@ export async function checkPage(
       log('Capturing screenshot...');
       const urlSlug = urlToSlug(url);
       const deviceSlug = deviceToSlug(device);
-      
+
       if (config.fullPage && config.maxScreenshotHeight !== null) {
         screenshots = await captureMultiPartScreenshots(
           page,
@@ -186,7 +186,7 @@ export async function checkPage(
       } else {
         const filename = `${urlSlug}.${deviceSlug}.png`;
         const screenshotPath = path.join(outputDir, filename);
-        
+
         await page.screenshot({
           path: screenshotPath,
           fullPage: config.fullPage,
@@ -201,6 +201,8 @@ export async function checkPage(
     await context.close();
 
   } catch (error) {
+    // Navigation/timeout errors are always retryable
+    retryable = true;
     if (error instanceof Error) {
       if (error.message.includes('Timeout')) {
         errors.push('Timeout exceeded');
@@ -212,17 +214,53 @@ export async function checkPage(
     }
   }
 
+  return { errors, warnings, screenshot, screenshots, retryable };
+}
+
+/**
+ * Check a single page with a specific device and capture screenshot.
+ * Retries on network errors and timeouts up to config.retries times (default 3).
+ */
+export async function checkPage(
+  browser: Browser,
+  url: string,
+  device: DeviceName,
+  config: PageConfig,
+  outputDir: string,
+  onProgress?: (message: string) => void
+): Promise<PageResult> {
+  const startTime = Date.now();
+  const maxAttempts = (config.retries ?? 3) + 1;
+
+  const log = (msg: string) => {
+    if (onProgress) onProgress(msg);
+  };
+
+  let result: AttemptResult = { errors: [], warnings: [], screenshot: undefined, screenshots: [], retryable: false };
+
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    if (attempt > 1) {
+      log(`Retry ${attempt - 1}/${maxAttempts - 1} for ${url} [${device}]...`);
+    }
+
+    result = await attemptPage(browser, url, device, config, outputDir, log);
+
+    if (!result.retryable || result.errors.length === 0 || attempt === maxAttempts) {
+      break;
+    }
+  }
+
   const duration = Date.now() - startTime;
 
   return {
     url,
     device,
-    success: errors.length === 0,
-    errors,
-    warnings,
+    success: result.errors.length === 0,
+    errors: result.errors,
+    warnings: result.warnings,
     duration,
-    screenshot,
-    screenshots: screenshots.length > 1 ? screenshots : undefined,
+    screenshot: result.screenshot,
+    screenshots: result.screenshots.length > 1 ? result.screenshots : undefined,
   };
 }
 

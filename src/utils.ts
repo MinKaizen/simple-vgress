@@ -8,6 +8,7 @@ export interface PageConfig {
   fullPage: boolean;
   devices: DeviceName[];
   timeoutMs: number;
+  retries: number;  // Number of retry attempts on network errors or timeouts (default 3)
   requiredSelectors: string[];
   abortIfFail: boolean;
   waitUntil: WaitUntilOption;
