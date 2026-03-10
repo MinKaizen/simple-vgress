@@ -1,0 +1,30 @@
+# Visual Regression Test Configuration
+
+crossDomain: true
+
+_default:
+  fullPage: true
+  devices: ["desktop", "mobile", "tablet"]
+  timeoutMs: 100000
+  requiredSelectors: []
+  retries: 3
+  abortIfFail: false
+  waitUntil: load
+  waitFor: []
+  scrollPage: true
+  additionalWaitMs: 60000
+  maxScreenshotHeight: 5000
+  visualRegressionThreshold: 1.0
+  generateDiffMask: false
+
+pages:
+  https://staging.dashdot.com.au/:
+  https://staging.dashdot.com.au/discovery/:
+  https://staging.dashdot.com.au/what-we-do/:
+  https://staging.dashdot.com.au/data-and-tech/:
+  https://staging.dashdot.com.au/reviews/:
+  https://staging.dashdot.com.au/our-company/:
+  https://staging.dashdot.com.au/our-team/:
+  https://staging.dashdot.com.au/news/:
+  https://staging.dashdot.com.au/our-resources/:
+

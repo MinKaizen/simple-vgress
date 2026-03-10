@@ -21,14 +21,20 @@ export interface PageConfig {
 }
 
 export interface Config {
+  crossDomain?: boolean; // If true, match baseline screenshots by URL path instead of full slug
   _default: PageConfig;
-  pages: Record<string, Partial<PageConfig>>;
+  pages: Record<string, UrlConfig>;
+}
+
+export interface UrlConfig extends Partial<PageConfig> {
+  compareTo?: string; // Explicit baseline URL to compare against (for cross-domain runs)
 }
 
 export interface PageJob {
   url: string;
   device: DeviceName;
   config: PageConfig;
+  compareTo?: string; // Explicit baseline URL override
 }
 
 export const DEFAULT_CONFIG: PageConfig = {
@@ -106,23 +112,50 @@ export function deviceToSlug(device: DeviceName): string {
 }
 
 /**
+ * Normalize a full URL for comparison: lowercase, strip trailing slash and query params
+ */
+export function normalizeUrlForComparison(url: string): string {
+  try {
+    const u = new URL(url);
+    const normalized = (u.origin + u.pathname).toLowerCase().replace(/\/+$/, '');
+    return normalized || u.origin.toLowerCase();
+  } catch {
+    return url.toLowerCase().replace(/\/+$/, '');
+  }
+}
+
+/**
+ * Extract and normalize just the path portion of a URL for cross-domain matching
+ */
+export function normalizeUrlPath(url: string): string {
+  try {
+    const u = new URL(url);
+    return u.pathname.toLowerCase().replace(/\/+$/, '') || '/';
+  } catch {
+    return '/';
+  }
+}
+
+/**
  * Expand pages with multiple devices into individual jobs
  */
 export function expandPageJobs(config: Config): PageJob[] {
   const jobs: PageJob[] = [];
-  
+
   for (const [url, pageConfig] of Object.entries(config.pages)) {
-    const mergedConfig = mergeConfig(config._default, pageConfig || {});
-    
+    const { compareTo, ...pageConfigWithoutCompareTo } = pageConfig || {};
+    const mergedConfig = mergeConfig(config._default, pageConfigWithoutCompareTo || {});
+
     for (const device of mergedConfig.devices) {
       jobs.push({
         url,
         device,
         config: mergedConfig,
+        compareTo,
       });
     }
   }
-  
+
   return jobs;
 }
 
@@ -205,7 +238,7 @@ export function validateConfig(config: unknown): { valid: boolean; errors: strin
       
       if (pageConfig && typeof pageConfig === 'object') {
         const pc = pageConfig as Record<string, unknown>;
-        
+
         if (pc.devices && !Array.isArray(pc.devices)) {
           errors.push(`devices must be an array for ${url}`);
         }
@@ -214,6 +247,16 @@ export function validateConfig(config: unknown): { valid: boolean; errors: strin
         }
         if (pc.requiredSelectors && !Array.isArray(pc.requiredSelectors)) {
           errors.push(`requiredSelectors must be an array for ${url}`);
+        }
+        if (pc.compareTo !== undefined && typeof pc.compareTo !== 'string') {
+          errors.push(`compareTo must be a string URL for ${url}`);
+        }
+        if (pc.compareTo && typeof pc.compareTo === 'string') {
+          try {
+            new URL(pc.compareTo as string);
+          } catch {
+            errors.push(`compareTo is not a valid URL for ${url}: ${pc.compareTo}`);
+          }
         }
       }
     }

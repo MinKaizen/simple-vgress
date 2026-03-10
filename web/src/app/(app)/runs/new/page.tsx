@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { ArrowLeft, Play, Loader2 } from 'lucide-react';
@@ -9,28 +9,119 @@ import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 
+function normalizeUrlForComparison(url: string): string {
+  try {
+    const u = new URL(url);
+    return (u.origin + u.pathname).toLowerCase().replace(/\/+$/, '') || u.origin.toLowerCase();
+  } catch {
+    return url.toLowerCase().replace(/\/+$/, '');
+  }
+}
+
+/**
+ * Extract compareTo values from a YAML config string.
+ * Returns an array of { forUrl, compareTo } pairs.
+ * Uses a simple regex approach so we don't need a YAML parser on the client.
+ */
+function extractCompareTo(yaml: string): { forUrl: string; compareTo: string }[] {
+  const results: { forUrl: string; compareTo: string }[] = [];
+
+  // Split into URL-level blocks by looking for top-level keys that look like URLs
+  // We parse line by line tracking the current URL context
+  let currentUrl: string | null = null;
+  let currentIndent = 0;
+
+  for (const line of yaml.split('\n')) {
+    const trimmed = line.trimEnd();
+    if (!trimmed || trimmed.trimStart().startsWith('#')) continue;
+
+    const indent = line.length - line.trimStart().length;
+    const keyMatch = trimmed.match(/^(\s*)(https?:\/\/[^:]+):\s*$/);
+    if (keyMatch && indent === 0) {
+      // Top-level URL key (pages section)
+      currentUrl = keyMatch[2].trim();
+      currentIndent = 0;
+      continue;
+    }
+
+    if (currentUrl) {
+      const compareToMatch = trimmed.match(/^\s+compareTo:\s*["']?(.+?)["']?\s*$/);
+      if (compareToMatch) {
+        results.push({ forUrl: currentUrl, compareTo: compareToMatch[1].trim() });
+      }
+    }
+  }
+
+  return results;
+}
+
 export default function NewRunPage() {
   const router = useRouter();
   const [config, setConfig] = useState('');
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [validationErrors, setValidationErrors] = useState<string[]>([]);
+  const [baselineUrls, setBaselineUrls] = useState<string[] | null>(null);
 
   useEffect(() => {
-    // Load the on-demand config
-    fetch('/api/config/on-demand')
-      .then((res) => res.json())
-      .then((data) => {
-        setConfig(data.config);
+    // Load default on-demand config and current baseline URLs in parallel
+    Promise.all([
+      fetch('/api/config/on-demand').then((r) => r.json()),
+      fetch('/api/baselines/current').then((r) => r.json()),
+    ])
+      .then(([configData, baselineData]) => {
+        setConfig(configData.config);
+        setBaselineUrls(baselineData.urls ?? []);
         setIsLoading(false);
       })
-      .catch((err) => {
+      .catch(() => {
         setError('Failed to load configuration');
         setIsLoading(false);
       });
   }, []);
 
+  // Validate compareTo values whenever config or baseline URLs change
+  const validateCompareTo = useCallback(
+    (yaml: string, urls: string[] | null) => {
+      if (urls === null) return; // still loading
+
+      const pairs = extractCompareTo(yaml);
+      if (pairs.length === 0) {
+        setValidationErrors([]);
+        return;
+      }
+
+      const normalizedBaselineUrls = urls.map(normalizeUrlForComparison);
+      const errors: string[] = [];
+
+      for (const { forUrl, compareTo } of pairs) {
+        const normalized = normalizeUrlForComparison(compareTo);
+        if (!normalizedBaselineUrls.includes(normalized)) {
+          if (urls.length === 0) {
+            errors.push(
+              `compareTo "${compareTo}" (for ${forUrl}): no current baseline exists or it has no recorded URLs.`
+            );
+          } else {
+            errors.push(
+              `compareTo "${compareTo}" (for ${forUrl}) was not found in the current baseline.`
+            );
+          }
+        }
+      }
+
+      setValidationErrors(errors);
+    },
+    []
+  );
+
+  useEffect(() => {
+    validateCompareTo(config, baselineUrls);
+  }, [config, baselineUrls, validateCompareTo]);
+
   const handleSubmit = async () => {
+    if (validationErrors.length > 0) return;
+
     setIsSubmitting(true);
     setError(null);
 
@@ -42,8 +133,6 @@ export default function NewRunPage() {
       });
 
       if (response.ok) {
-        const data = await response.json();
-        // Redirect to runs list - the run will appear there
         router.push('/runs');
       } else {
         const errorData = await response.json();
@@ -55,6 +144,8 @@ export default function NewRunPage() {
       setIsSubmitting(false);
     }
   };
+
+  const hasValidationErrors = validationErrors.length > 0;
 
   return (
     <div className="space-y-6">
@@ -98,6 +189,17 @@ export default function NewRunPage() {
                 />
               </div>
 
+              {hasValidationErrors && (
+                <div className="bg-[var(--destructive)]/10 border border-[var(--destructive)] text-[var(--destructive)] rounded-lg p-3 text-sm space-y-1">
+                  <p className="font-medium">Cannot start run — invalid compareTo values:</p>
+                  <ul className="list-disc list-inside space-y-0.5">
+                    {validationErrors.map((e, i) => (
+                      <li key={i}>{e}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
               {error && (
                 <div className="bg-[var(--destructive)]/10 border border-[var(--destructive)] text-[var(--destructive)] rounded-lg p-3 text-sm">
                   {error}
@@ -107,7 +209,7 @@ export default function NewRunPage() {
               <div className="flex gap-2">
                 <Button
                   onClick={handleSubmit}
-                  disabled={isSubmitting || !config.trim()}
+                  disabled={isSubmitting || !config.trim() || hasValidationErrors}
                 >
                   {isSubmitting ? (
                     <>

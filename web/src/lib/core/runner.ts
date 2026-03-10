@@ -5,25 +5,29 @@ import { chromium, Browser } from 'playwright';
 import * as path from 'path';
 import * as fs from 'fs';
 import { v4 as uuid } from 'uuid';
-import { 
-  Config, 
-  expandPageJobs, 
-  parseConfig, 
+import {
+  Config,
+  expandPageJobs,
+  parseConfig,
   generateTimestamp,
   urlToSlug,
   deviceToSlug,
   findScreenshots,
+  normalizeUrlForComparison,
+  normalizeUrlPath,
 } from './utils';
 import { checkPage, PageResult } from './worker';
 import { compareImages, createSideBySideDiff, createDiffMask } from './differ';
-import { 
-  Run, 
-  RunSummary, 
+import {
+  Run,
+  RunSummary,
   RunResult,
-  createRun, 
-  updateRun, 
-  getCurrentBaseline, 
+  Baseline,
+  createRun,
+  updateRun,
+  getCurrentBaseline,
   getBaselineById,
+  getRunById,
   TriggerType,
 } from '@/lib/db';
 import { getDataDir } from '@/lib/storage';
@@ -51,6 +55,55 @@ interface VisualComparisonResult {
   errorMessage?: string;
   screenshotParts: string[];
   diffImages: string[];
+}
+
+/**
+ * Get the list of URLs captured in the run a baseline was promoted from.
+ * Returns an empty array if the baseline has no associated run.
+ */
+function getBaselineUrls(baseline: Baseline): string[] {
+  if (!baseline.promoted_from_run_id) return [];
+  const run = getRunById(baseline.promoted_from_run_id);
+  if (!run?.results_json) return [];
+  try {
+    const results: RunResult[] = JSON.parse(run.results_json);
+    return [...new Set(results.map((r) => r.url))];
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Check whether screenshots for a given URL exist in a baseline directory.
+ * Matches by slug prefix so device variants are included.
+ */
+function urlExistsInBaseline(baselineDir: string, url: string): boolean {
+  if (!fs.existsSync(baselineDir)) return false;
+  const slug = urlToSlug(url);
+  const files = fs.readdirSync(baselineDir);
+  return files.some((f) => f.startsWith(slug + '.') && f.endsWith('.png'));
+}
+
+/**
+ * Validate that every compareTo URL specified at the page level exists in the baseline.
+ * Throws an error with a friendly message if any are missing.
+ */
+function validateCompareToUrls(config: Config, baselineDir: string): void {
+  const missing: string[] = [];
+  for (const [, pageConfig] of Object.entries(config.pages)) {
+    if (pageConfig?.compareTo) {
+      if (!urlExistsInBaseline(baselineDir, pageConfig.compareTo)) {
+        missing.push(pageConfig.compareTo);
+      }
+    }
+  }
+  if (missing.length > 0) {
+    throw new Error(
+      `The following compareTo URLs were not found in the current baseline:\n` +
+        missing.map((u) => `  • ${u}`).join('\n') +
+        `\n\nPlease check the baseline contains screenshots for these URLs before starting the run.`
+    );
+  }
 }
 
 /**
@@ -100,7 +153,21 @@ export async function executeRun(
     // Parse config
     const config = parseConfig(configYaml);
     const jobs = expandPageJobs(config);
-    
+
+    // Validate compareTo URLs against the baseline before starting
+    if (currentBaseline) {
+      validateCompareToUrls(config, currentBaseline.screenshot_path);
+    }
+
+    // Build a map from url::device → compareTo for use during comparison
+    const compareToMap = new Map<string, string | undefined>();
+    for (const job of jobs) {
+      compareToMap.set(`${job.url}::${job.device}`, job.compareTo);
+    }
+
+    // Pre-fetch baseline URLs for cross-domain path matching
+    const baselineUrls = currentBaseline ? getBaselineUrls(currentBaseline) : [];
+
     // Launch browser
     browser = await chromium.launch({ headless: true });
     
@@ -184,12 +251,42 @@ export async function executeRun(
       for (const [key, pageResult] of urlDeviceGroups) {
         const urlSlug = urlToSlug(pageResult.url);
         const deviceSlug = deviceToSlug(pageResult.device);
-        
+
         // Get screenshots from current run
         const currentScreenshots = findScreenshots(screenshotDir, urlSlug, deviceSlug);
-        
+
+        // Determine which baseline URL to compare against:
+        //   1. If compareTo is set at URL level, use that explicitly.
+        //   2. If crossDomain is true, match by URL path.
+        //   3. Otherwise, use the current URL slug (default behaviour).
+        const compareTo = compareToMap.get(key);
+        let baselineUrlSlug: string | null = null;
+
+        if (compareTo) {
+          baselineUrlSlug = urlToSlug(compareTo);
+        } else if (config.crossDomain) {
+          const currentPath = normalizeUrlPath(pageResult.url);
+          const matchingBaselineUrl = baselineUrls.find(
+            (bu) => normalizeUrlPath(bu) === currentPath
+          );
+          if (!matchingBaselineUrl) {
+            // No path match in baseline – treat as new URL (auto-pass)
+            comparisonResults.push({
+              url: pageResult.url,
+              device: pageResult.device,
+              status: 'passed',
+              screenshotParts: currentScreenshots,
+              diffImages: [],
+            });
+            continue;
+          }
+          baselineUrlSlug = urlToSlug(matchingBaselineUrl);
+        } else {
+          baselineUrlSlug = urlSlug;
+        }
+
         // Get screenshots from baseline
-        const baselineScreenshots = findScreenshots(baselineScreenshotDir, urlSlug, deviceSlug);
+        const baselineScreenshots = findScreenshots(baselineScreenshotDir, baselineUrlSlug, deviceSlug);
         
         if (baselineScreenshots.length === 0) {
           // No baseline for this URL+device
@@ -220,7 +317,6 @@ export async function executeRun(
         let totalDiffPercentage = 0;
         let hasDiff = false;
         const diffImages: string[] = [];
-        const config = parseConfig(configYaml);
         const threshold = config._default.visualRegressionThreshold;
         
         for (let i = 0; i < currentScreenshots.length; i++) {
