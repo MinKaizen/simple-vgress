@@ -276,38 +276,33 @@ async function captureMultiPartScreenshots(
 ): Promise<string[]> {
   const screenshots: string[] = [];
   const { Jimp } = await import('jimp');
-  
-  // Get page dimensions
-  const dimensions = await page.evaluate(() => {
-    const height = Math.max(
+
+  // Use viewport width as the authoritative width — fullPage screenshots can
+  // capture overflowing content that is wider than the actual viewport.
+  const viewportWidth = page.viewportSize()?.width ?? 1280;
+
+  // Get page height only (we ignore scrollWidth to avoid overflow artifacts)
+  const pageHeight = await page.evaluate(() =>
+    Math.max(
       document.body.scrollHeight,
       document.body.offsetHeight,
       document.documentElement.clientHeight,
       document.documentElement.scrollHeight,
       document.documentElement.offsetHeight
-    );
-    const width = Math.max(
-      document.body.scrollWidth,
-      document.body.offsetWidth,
-      document.documentElement.clientWidth,
-      document.documentElement.scrollWidth,
-      document.documentElement.offsetWidth
-    );
-    return { height, width };
-  });
-
-  const pageHeight = dimensions.height;
+    )
+  );
 
   // If page height is less than or equal to max, take single screenshot
   if (pageHeight <= maxHeight) {
     const filename = `${urlSlug}.${deviceSlug}.png`;
     const screenshotPath = path.join(outputDir, filename);
-    
+
     await page.screenshot({
       path: screenshotPath,
       fullPage: true,
+      clip: { x: 0, y: 0, width: viewportWidth, height: pageHeight },
     });
-    
+
     return [filename];
   }
 
@@ -315,7 +310,7 @@ async function captureMultiPartScreenshots(
   const partHeight = maxHeight;
   const numParts = Math.ceil(pageHeight / maxHeight);
 
-  // Take full-page screenshot
+  // Take full-page screenshot then crop to viewport width to discard horizontal overflow
   const tempFullPath = path.join(outputDir, `temp-full-${Date.now()}.png`);
   await page.screenshot({
     path: tempFullPath,
@@ -324,23 +319,25 @@ async function captureMultiPartScreenshots(
 
   // Load the full image with Jimp
   const fullImage = await Jimp.read(tempFullPath);
-  
+  // Clamp to viewport width in case the page rendered wider than the viewport
+  const cropWidth = Math.min(fullImage.bitmap.width, viewportWidth);
+
   // Split into parts
   for (let i = 0; i < numParts; i++) {
     const startY = i * partHeight;
     const actualHeight = Math.min(partHeight, pageHeight - startY);
-    
+
     const filename = `${urlSlug}.${deviceSlug}.part${i + 1}of${numParts}.png`;
     const screenshotPath = path.join(outputDir, filename);
-    
+
     const croppedImage = fullImage.clone().crop({
       x: 0,
       y: startY,
-      w: fullImage.bitmap.width,
+      w: cropWidth,
       h: actualHeight
     });
     await croppedImage.write(screenshotPath as `${string}.${string}`);
-    
+
     screenshots.push(filename);
   }
 

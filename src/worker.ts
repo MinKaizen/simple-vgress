@@ -262,11 +262,15 @@ async function captureMultiPartScreenshots(
   const screenshots: string[] = [];
   const { Jimp } = require('jimp');
   const fs = require('fs');
-  
-  // Get page dimensions
-  const dimensions = await page.evaluate(() => {
+
+  // Use viewport width as the authoritative width — fullPage screenshots can
+  // capture overflowing content that is wider than the actual viewport.
+  const viewportWidth = page.viewportSize()?.width ?? 1280;
+
+  // Get page height only (ignore scrollWidth to avoid overflow artifacts)
+  const pageHeight = await page.evaluate(() => {
     // @ts-ignore
-    const height = Math.max(
+    return Math.max(
       // @ts-ignore
       document.body.scrollHeight,
       // @ts-ignore
@@ -278,42 +282,27 @@ async function captureMultiPartScreenshots(
       // @ts-ignore
       document.documentElement.offsetHeight
     );
-    // @ts-ignore
-    const width = Math.max(
-      // @ts-ignore
-      document.body.scrollWidth,
-      // @ts-ignore
-      document.body.offsetWidth,
-      // @ts-ignore
-      document.documentElement.clientWidth,
-      // @ts-ignore
-      document.documentElement.scrollWidth,
-      // @ts-ignore
-      document.documentElement.offsetWidth
-    );
-    return { height, width };
   });
-
-  const pageHeight = dimensions.height;
 
   // If page height is less than or equal to max, take single screenshot
   if (pageHeight <= maxHeight) {
     const filename = `${urlSlug}.${deviceSlug}.png`;
     const screenshotPath = path.join(outputDir, filename);
-    
+
     await page.screenshot({
       path: screenshotPath,
       fullPage: true,
+      clip: { x: 0, y: 0, width: viewportWidth, height: pageHeight },
     });
-    
+
     return [filename];
   }
 
   // Calculate number of parts needed (fixed-height chunks)
-  const partHeight = maxHeight;  // Fixed height chunks
+  const partHeight = maxHeight;
   const numParts = Math.ceil(pageHeight / maxHeight);
 
-  // First, take a full-page screenshot
+  // Take full-page screenshot then crop to viewport width to discard horizontal overflow
   const tempFullPath = path.join(outputDir, `temp-full-${Date.now()}.png`);
   await page.screenshot({
     path: tempFullPath,
@@ -322,24 +311,25 @@ async function captureMultiPartScreenshots(
 
   // Load the full image with Jimp
   const fullImage = await Jimp.read(tempFullPath);
-  
+  // Clamp to viewport width in case the page rendered wider than the viewport
+  const cropWidth = Math.min(fullImage.bitmap.width, viewportWidth);
+
   // Split into parts
   for (let i = 0; i < numParts; i++) {
     const startY = i * partHeight;
     const actualHeight = Math.min(partHeight, pageHeight - startY);
-    
+
     const filename = `${urlSlug}.${deviceSlug}.part${i + 1}of${numParts}.png`;
     const screenshotPath = path.join(outputDir, filename);
-    
-    // Crop the image
+
     const croppedImage = fullImage.clone().crop({
       x: 0,
       y: startY,
-      w: fullImage.bitmap.width,
+      w: cropWidth,
       h: actualHeight
     });
     await croppedImage.write(screenshotPath);
-    
+
     screenshots.push(filename);
   }
 
