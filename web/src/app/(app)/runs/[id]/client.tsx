@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { CheckCircle, XCircle, AlertCircle, Eye, ArrowUpCircle } from 'lucide-react';
+import { CheckCircle, XCircle, AlertCircle, Eye, ArrowUpCircle, Columns2, SlidersHorizontal } from 'lucide-react';
 import { Run, RunResult } from '@/lib/db';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -30,6 +30,7 @@ export function RunDetailClient({ run, results }: RunDetailClientProps) {
   const router = useRouter();
   const [selectedResult, setSelectedResult] = useState<RunResult | null>(null);
   const [showDiffDialog, setShowDiffDialog] = useState(false);
+  const [viewMode, setViewMode] = useState<'sidebyside' | 'slider'>('sidebyside');
   const [showPromoteDialog, setShowPromoteDialog] = useState(false);
   const [promoteReason, setPromoteReason] = useState('');
   const [isPromoting, setIsPromoting] = useState(false);
@@ -147,6 +148,7 @@ export function RunDetailClient({ run, results }: RunDetailClientProps) {
                           size="sm"
                           onClick={() => {
                             setSelectedResult(result);
+                            setViewMode('sidebyside');
                             setShowDiffDialog(true);
                           }}
                         >
@@ -187,21 +189,45 @@ export function RunDetailClient({ run, results }: RunDetailClientProps) {
             <div className="space-y-4">
               {selectedResult.status === 'failed' && selectedResult.diffImages && selectedResult.diffImages.length > 0 && run.baseline_id_at_run ? (
                 <div className="space-y-4">
-                  <div className="text-sm font-medium">Drag the slider to compare baseline vs current:</div>
-                  <DiffSlider
-                    baselineUrl={baselineScreenshotUrl(selectedResult.screenshotParts[0])}
-                    currentUrl={getScreenshotUrl(selectedResult.screenshotParts[0])}
-                    className="h-[500px] rounded-lg border border-[var(--border)]"
-                  />
-                  
-                  {selectedResult.diffImages.filter(f => f.includes('-diff.')).length > 0 && (
-                    <div>
-                      <div className="text-sm font-medium mb-2">Side-by-side diff:</div>
+                  {/* View mode toggle */}
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => setViewMode('sidebyside')}
+                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded text-sm font-medium transition-colors ${
+                        viewMode === 'sidebyside'
+                          ? 'bg-[var(--primary)] text-[var(--primary-foreground)]'
+                          : 'bg-[var(--muted)] text-[var(--muted-foreground)] hover:bg-[var(--muted)]/80'
+                      }`}
+                    >
+                      <Columns2 className="h-4 w-4" />
+                      Side by Side
+                    </button>
+                    <button
+                      onClick={() => setViewMode('slider')}
+                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded text-sm font-medium transition-colors ${
+                        viewMode === 'slider'
+                          ? 'bg-[var(--primary)] text-[var(--primary-foreground)]'
+                          : 'bg-[var(--muted)] text-[var(--muted-foreground)] hover:bg-[var(--muted)]/80'
+                      }`}
+                    >
+                      <SlidersHorizontal className="h-4 w-4" />
+                      Slider
+                    </button>
+                  </div>
+
+                  {viewMode === 'sidebyside' ? (
+                    selectedResult.diffImages.filter(f => f.includes('-diff.')).length > 0 && (
                       <ImageStitcher
                         images={selectedResult.diffImages.filter(f => f.includes('-diff.')).map(getDiffUrl)}
                         className="rounded-lg border border-[var(--border)]"
                       />
-                    </div>
+                    )
+                  ) : (
+                    <DiffSlider
+                      baselineUrls={selectedResult.screenshotParts.map(baselineScreenshotUrl)}
+                      currentUrls={selectedResult.screenshotParts.map(getScreenshotUrl)}
+                      className="rounded-lg border border-[var(--border)]"
+                    />
                   )}
                 </div>
               ) : (
