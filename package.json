@@ -5,7 +5,7 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
-    "start": "pnpm build && next start",
+    "start": "next start",
     "lint": "eslint",
     "db:init": "node -e \"require('./src/lib/db/index.ts')\""
   },
