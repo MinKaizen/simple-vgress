@@ -20,7 +20,7 @@ function initializeAdminUser() {
     // Create admin user with hashed password
     const hashedPassword = hashPassword(adminPassword);
     db.prepare(`
-      INSERT INTO users (id, email, name, password_hash)
+      INSERT OR IGNORE INTO users (id, email, name, password_hash)
       VALUES (?, ?, ?, ?)
     `).run(generateUserId(), adminEmail, 'Admin', hashedPassword);
     console.log('Admin user created successfully');
